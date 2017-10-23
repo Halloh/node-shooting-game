@@ -8,6 +8,17 @@ most of the functions here emits an object called data.  One of it's properties 
 for asynchronous programming, anytime we use a function that we'll expect to get the result in the future, we use callbacks
 */
 
+/* MongoDB collection structure
+    use myGame
+    db.createCollection("account")
+    db.createCollection("progress")
+*/
+
+//For mongoDB
+var mongojs = require("mongojs");
+//Create connection for mongoDB
+var db = mongojs('localhost:27017/myGame', ['account','progress']);
+
 //Only time we'll be using express
 var express = require('express');
 var app = express();
@@ -213,15 +224,31 @@ var USERS = {
     "bob3":"ttt"
 };
 
-var isValidPassword = function (data) {
-    return USERS[data.username] === data.password;
+//data is object with properties username and password
+//cb is the callback
+var isValidPassword = function (data,cb) {
+    db.account.find({username:data.username, password:data.password}, function(err,res){ //callback functions always start with error and a result in paramter
+        if(res.length > 0) //If there has been a match in db
+            cb(true);
+        else
+            cb(false);
+    });
 }
-var isUsernameTaken = function (data) {
-    return USERS[data.username];
+var isUsernameTaken = function (data,cb) {
+    db.account.find({username:data.username}, function (err,res) {
+        if(res.length > 0)
+            cb(true);
+        else
+            cb(false);
+    });
+}   
+var addUser = function (data,cb) {
+    db.account.insert({ username: data.username, password: data.password }, function (err) { //no res for insertion
+        cb();
+    });
 }
-var addUser = function (data) {
-    USERS[data.username] = data.password;
-}
+
+
 //socket.io
 var io = require('socket.io')(serv, {});
 io.sockets.on('connection', function(socket) {
@@ -234,21 +261,28 @@ io.sockets.on('connection', function(socket) {
 
     //When a player signs in, create the player
     socket.on('signIn', function (data) {
-        if(isValidPassword(data)){
-            Player.onConnect(socket);  
-            socket.emit('signInResponse',{success:true});
-        } else {
-            socket.emit('signInResponse', {success:false});
-        }       
+        isValidPassword(data, function(res) {
+            if(res){
+                Player.onConnect(socket);
+                socket.emit('signInResponse', { success: true });
+            } else {
+                socket.emit('signInResponse', {success:false});
+            }       
+        });
     });
+
     socket.on('signUp', function (data) {
-        if (isUsernameTaken(data)) {
-            socket.emit('signUpResponse', { success: false });
-        } else {
-            addUser(data);
-            socket.emit('signUpResponse', { success: true });
-        }
+        isUsernameTaken(data, function(res) {
+            if(res){
+                socket.emit('signUpResponse', { success: false });
+            } else {
+                addUser(data,function (){
+                    socket.emit('signUpResponse', { success: true });
+                });
+            }
+        });
     });
+    
     //Listen for a client disconnecting
     socket.on('disconnect', function(){
         delete SOCKET_LIST[socket.id];
