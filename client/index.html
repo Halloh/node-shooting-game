@@ -49,21 +49,21 @@
         } else
             alert("Sign up unsucessful");
     });
-    //game related stuff
+
+
+    //chat
     var chatText = document.getElementById('chat-text');
     var chatInput = document.getElementById('chat-input');
     var chatForm = document.getElementById('chat-form');
-    var ctx = document.getElementById("ctx").getContext("2d");
-    ctx.font = '30px Arial'; 
- 
-    socket.on('newPositions', function (data) {
-        ctx.clearRect(0, 0, 500, 500);
-        for (var i = 0; i < data.player.length; i++)
-            ctx.fillText(data.player[i].number, data.player[i].x, data.player[i].y);
 
-        for (var i = 0; i < data.bullet.length; i++)
-            ctx.fillRect(data.bullet[i].x - 5, data.bullet[i].y - 5, 10, 10); //Draws a 10x10 square.  Top left corner of bullet gonna be x-5 and top right corner y-5 
-    });
+ 
+
+
+
+
+
+
+
     //for chatting
     socket.on('addToChat', function(data){
         chatText.innerHTML += '<div>' + data + '</div>'
@@ -84,6 +84,102 @@
             chatInput.value = '';
         }
     }
+
+
+    //Game
+    var ctx = document.getElementById("ctx").getContext("2d");
+    ctx.font = '30px Arial'; 
+
+    //container for players (we're using a class in this case)
+    var Player = function(initPack){
+        var self = {};
+        self.id = initPack.id;
+        self.number = initPack.number;
+        self.x = initPack.x;
+        self.y = initPack.y;
+        Player.list[self.id] = self;
+        return self;
+    }
+    Player.list = {};
+
+    var Bullet = function (initPack) {
+            var self = {};
+            self.id = initPack.id;
+            self.x = initPack.x;
+            self.y = initPack.y;
+            Bullet.list[self.id] = self;
+            return self;
+    }
+    Bullet.list = {};
+
+    socket.on('init', function(data){
+        //Server will send something similar to this object
+        //{ player: [{id:123,number:'1',x:0,y:0}, {id:1,number:'2',x:0,y:0}], bullet: []}
+        for (var i = 0; i < data.player.length; i++){
+            new Player(data.player[i]);
+        }
+        for (var i = 0; i < data.bullet.length; i++){
+            new Bullet(data.bullet[i]);
+        }
+    });
+
+    socket.on('update', function (data) {
+        //Server will send something similar to this object
+        //{ player: [{id:123,number:'1',x:0,y:0}, {id:1,number:'2',x:0,y:0}], bullet: []}
+        for (var i = 0; i < data.player.length; i++) {
+            var pack = data.player[i];
+            var p = Player.list[pack.id];
+            if (p){
+                if(pack.x !== undefined)
+                    p.x = pack.x;
+                if(pack.y !== undefined)
+                    p.y = pack.y;
+            }
+        }
+        for (var i = 0; i < data.bullet.length; i++) {
+            var pack = data.bullet[i];
+            var b = Bullet.list[data.bullet[i].id];
+            if(b){
+                if(pack.x !== undefined)
+                    b.x = pack.x;
+                if(pack.y !== undefined)
+                    b.y = pack.y;
+            }
+        }
+    });
+
+    socket.on('remove',function (data){
+        //{player:[12323],bullet:[12323,123123]}
+        for(var i = 0; i < data.player.length; i++){
+            delete Player.list[data.player[i]];
+        }
+        for(var i = 0; i < data.bullet.length; i++){
+            delete Bullet.list[data.bullet[i]];
+        }
+    });
+
+    
+    setInterval(function () {
+            var pack = {
+                player: Player.update(),
+                bullet: Bullet.update(),
+            }
+            for (var i in SOCKET_LIST) {
+                var socket = SOCKET_LIST[i];
+                socket.emit('newPositions', pack);
+            }
+
+
+        }, 1000 / 25); //runs at 25 fps or every 40 ms
+
+    setInterval(function () {
+        ctx.clearRect(0,0,500,500);
+        for(var i in Player.list)
+            ctx.fillText(Player.list[i].number,Player.list[i].x,Player.list[i].y);
+        for(var i in Bullet.list)
+            ctx.fillRect(Bullet.list[i].x-5,Bullet.list[i].y-5,10,10);
+    },40);
+
 
     //for the updatePosition() on server side
     document.onkeydown = function (event) {
