@@ -80,7 +80,10 @@ var Player = function (id){
     self.pressingAttack = false;
     self.mouseAngle = 0;
     self.maxSpd = 10;
-    
+    self.hp = 10;
+    self.hpMax = 10;
+    self.score = 0;
+
     var super_update = self.update;
     self.update = function () {
         self.updateSpd();
@@ -115,14 +118,31 @@ var Player = function (id){
         else
             self.spdY = 0;
     } 
+    //Function that returns an object that contains the game state
+    self.getInitPack = function(){
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            number: self.number,
+            hp: self.hp,
+            hpMax: self.hpMax,
+            score: self.score,
+        };
+    };
+    self.getUpdatePack = function() {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            hp: self.hp,
+            score: self.score,
+        };
+    };
+
     Player.list[id] = self;  //Automatically add this player to the PLAYER_LIST
 
-    initPack.player.push({
-        id: self.id,
-        x: self.x,
-        y: self.y,
-        number: self.number,
-    });
+    initPack.player.push(self.getInitPack());
 
     return self;
 
@@ -147,8 +167,25 @@ Player.onConnect = function (socket) {
         else if (data.inputId === 'mouseAngle')
             player.mouseAngle = data.state;
     });
+
+
+
+    //Give the game state whenever a new player connects
+    socket.emit('init', {
+        selfId:socket.id, //so client-side will know what player they are
+        player:Player.getAllInitPack(),
+        bullet:Bullet.getAllInitPack(),
+    })
+
+
     
 }//onConnect
+Player.getAllInitPack = function(){
+    var players = [];
+    for(var i in Player.list)
+        players.push(Player.list[i].getInitPack());
+    return players;
+}
 
 Player.onDisconnect = function (socket) {
     delete Player.list[socket.io];
@@ -163,11 +200,7 @@ Player.update = function () {
     for (var i in Player.list) {
         var player = Player.list[i];
         player.update();
-        pack.push({
-            id: player.id,
-            x: player.x,
-            y: player.y
-        });
+        pack.push(player.getUpdatePack());
     }
     return pack;
 }
@@ -193,18 +226,40 @@ var Bullet = function (parent, angle) {
             //RainingChain says it's not good to hard code this.  Improve this later on
             if (self.getDistance(p) < 32 && self.parent !== p.id){
                 //handle collision. ex: hp--;
+                p.hp -= 1;
+
+                if(p.hp <= 0){
+                    //self.parent only refers to the id but we need the object, so we use Player.list[self.parent];
+                    var shooter = Player.list[self.parent];
+                    //If shooter is still alive/connected
+                    if (shooter)
+                        shooter.score += 1;
+                    p.hp = p.hpMax;
+                    p.x = Math.random() * 500;
+                    p.y = Math.random () * 500;
+                }
                 self.toRemove = true;
             }
-        }
-        
-        
+        }   
     }
+    //Function that returns an object that contains the game state
+    self.getInitPack = function () {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            number: self.number,
+        };
+    };
+    self.getUpdatePack = function () {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+        };
+    };
     Bullet.list[self.id] = self;
-    initPack.bullet.push({
-        id: self.id,
-        x: self.x,
-        y: self.y,
-    });
+    initPack.bullet.push(self.getInitPack());
     return self;
 }//Bullet Class
 
@@ -223,13 +278,16 @@ Bullet.update = function () {
             delete Bullet.list[i];
             removePack.bullet.push(bullet.id);
         } else
-            pack.push({
-                id: bullet.id,
-                x: bullet.x,
-                y: bullet.y
-            });
+            pack.push(bullet.getUpdatePack());
     }
     return pack;
+}
+
+Bullet.getAllInitPack = function () {
+    var bullets = [];
+    for (var i in Bullet.list)
+        bullets.push(Bullet.list[i].getInitPack());
+    return bullets;
 }
 
 //Used to enable the debugging functions (make sure to set this to false if release publicly!)
