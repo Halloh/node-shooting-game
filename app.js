@@ -15,9 +15,9 @@ for asynchronous programming, anytime we use a function that we'll expect to get
 */
 
 //For mongoDB
-var mongojs = require("mongojs");
+//var mongojs = require("mongojs");
 //Create connection for mongoDB
-var db = mongojs('localhost:27017/myGame', ['account','progress']);
+var db = null; //mongojs('localhost:27017/myGame', ['account','progress']);
 
 //Only time we'll be using express
 var express = require('express');
@@ -29,7 +29,9 @@ app.get('/', function (req, res) {
 });
 app.use('/client',express.static(__dirname + '/client'));
 
-serv.listen(2000);
+
+//serv.listen(2000); //Before Heroku we used this
+serv.listen(process.env.PORT || 2000); //proccess.env.PORT is something that Heroku needs (but we still added port 2000 incase process.env.PORT is unavailable for whatever reason)
 //End of express
 
 
@@ -51,22 +53,22 @@ var Entity = function () {
         spdX:0,
         spdY:0,
         id:"",
-    }
+    };
 
     //Update loop in Entity class
     self.update = function () {
         self.updatePosition();
-    }
+    };
     self.updatePosition = function () {
         self.x += self.spdX;
         self.y += self.spdY;
-    }
+    };
     //Standard way to get distance
     self.getDistance = function(pt){
         return Math.sqrt(Math.pow(self.x-pt.x,2) + Math.pow(self.y-pt.y,2));
-    }
+    };
     return self;
-}
+};
 
 var Player = function (id){
     var self = Entity ();
@@ -93,13 +95,13 @@ var Player = function (id){
         if (self.pressingAttack) {
             self.shootBullet(self.mouseAngle);
         }
-    }
+    };
 
     self.shootBullet = function(angle){
         var b = Bullet(self.id, angle);
         b.x = self.x;
         b.y = self.y;
-    }
+    };
 
     //this function gets called every frame
     //Note there is a limitation in general.  The server doesn't have (or shouldn't have) access to the client
@@ -117,7 +119,7 @@ var Player = function (id){
             self.spdY = self.maxSpd;
         else
             self.spdY = 0;
-    } 
+    };
     //Function that returns an object that contains the game state
     self.getInitPack = function(){
         return {
@@ -147,7 +149,7 @@ var Player = function (id){
     return self;
 
 
-}//End of Player class
+}; //End of Player class
 Player.list = {};
 Player.onConnect = function (socket) {
     var player = Player(socket.id);
@@ -175,22 +177,22 @@ Player.onConnect = function (socket) {
         selfId:socket.id, //so client-side will know what player they are
         player:Player.getAllInitPack(),
         bullet:Bullet.getAllInitPack(),
-    })
+    });
 
 
     
-}//onConnect
+}; //onConnect
 Player.getAllInitPack = function(){
     var players = [];
     for(var i in Player.list)
         players.push(Player.list[i].getInitPack());
     return players;
-}
+};
 
 Player.onDisconnect = function (socket) {
     delete Player.list[socket.io];
     removePack.player.push(socket.id);
-}
+};
 
 Player.update = function () {
     //run a package that contains every player in the game
@@ -203,7 +205,7 @@ Player.update = function () {
         pack.push(player.getUpdatePack());
     }
     return pack;
-}
+};
       
     
     
@@ -244,7 +246,7 @@ var Bullet = function (parent, angle) {
                 self.toRemove = true;
             }
         }   
-    }
+    };
     //Function that returns an object that contains the game state
     self.getInitPack = function () {
         return {
@@ -264,7 +266,7 @@ var Bullet = function (parent, angle) {
     Bullet.list[self.id] = self;
     initPack.bullet.push(self.getInitPack());
     return self;
-}//Bullet Class
+}; //Bullet Class
 
 Bullet.list = {};
 
@@ -284,14 +286,14 @@ Bullet.update = function () {
             pack.push(bullet.getUpdatePack());
     }
     return pack;
-}
+};
 
 Bullet.getAllInitPack = function () {
     var bullets = [];
     for (var i in Bullet.list)
         bullets.push(Bullet.list[i].getInitPack());
     return bullets;
-}
+};
 
 //Used to enable the debugging functions (make sure to set this to false if release publicly!)
 var DEBUG = true;
@@ -307,26 +309,29 @@ var USERS = {
 //data is object with properties username and password
 //cb is the callback
 var isValidPassword = function (data,cb) {
+    return cb(true);
     db.account.find({username:data.username, password:data.password}, function(err,res){ //callback functions always start with error and a result in paramter
         if(res.length > 0) //If there has been a match in db
             cb(true);
         else
             cb(false);
     });
-}
+};
 var isUsernameTaken = function (data,cb) {
+    return cb(false);
     db.account.find({username:data.username}, function (err,res) {
         if(res.length > 0)
             cb(true);
         else
             cb(false);
     });
-}   
+};  
 var addUser = function (data,cb) {
+    return cb();
     db.account.insert({ username: data.username, password: data.password }, function (err) { //no res for insertion
         cb();
     });
-}
+};
 
 
 //socket.io
@@ -384,7 +389,7 @@ io.sockets.on('connection', function(socket) {
             return;
         
         var res = eval(data);
-        socket.emit('evalAnswer', res)
+        socket.emit('evalAnswer', res);
     });
 
  
@@ -413,7 +418,7 @@ setInterval(function() {
     var pack = {
         player:Player.update(),
         bullet:Bullet.update(),
-    }
+    };
     //Basically, every frame, we're sending the init, update, and remove pack.  Then we reset it afterwards
     for(var i in SOCKET_LIST){
         var socket = SOCKET_LIST[i];
