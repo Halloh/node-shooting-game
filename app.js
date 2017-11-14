@@ -204,6 +204,9 @@ Player.update = function () {
     }
     return pack;
 }
+      
+    
+    
 
 
 //Bullet class
