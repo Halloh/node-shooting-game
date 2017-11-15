@@ -19,6 +19,9 @@
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
+    var WIDTH = 500;
+    var HEIGHT = 500;
+
     var socket = io();
     //sign in stuff
     var signDiv = document.getElementById('signDiv');
@@ -56,12 +59,6 @@
     var chatInput = document.getElementById('chat-input');
     var chatForm = document.getElementById('chat-form');
 
- 
-
-
-
-
-
 
 
     //for chatting
@@ -87,6 +84,14 @@
 
 
     //Game
+    var Img = {};
+    Img.player = new Image();
+    Img.player.src = '/client/img/player.png';
+    Img.bullet = new Image();
+    Img.bullet.src = '/client/img/bullet.png';
+    Img.map = new Image();
+    Img.map.src = '/client/img/map.png';
+
     var ctx = document.getElementById("ctx").getContext("2d");
     ctx.font = '30px Arial'; 
 
@@ -97,6 +102,28 @@
         self.number = initPack.number;
         self.x = initPack.x;
         self.y = initPack.y;
+        self.hp = initPack.hp;
+        self.hpMax = initPack.hpMax;
+        self.score = initPack.score;
+
+        self.draw = function () {
+            var x = self.x - Player.list[selfId].x + WIDTH / 2;
+            var y = self.y - Player.list[selfId].y + HEIGHT / 2;
+
+            var hpWidth = 30 * self.hp / self.hpMax;  //hp bar
+            ctx.fillStyle = 'red';
+            ctx.fillRect(x - hpWidth/2,y - 40,hpWidth,4);
+            
+            var width = Img.player.width*2;
+            var height = Img.player.height*2;
+
+            ctx.drawImage(Img.player,
+                0,0,Img.player.width,Img.player.height,
+                x-width/2,y-height/2,width,height);
+
+            //ctx.fillText(self.score,self.x,self.y-60); //score for player
+        }
+
         Player.list[self.id] = self;
         return self;
     }
@@ -107,12 +134,29 @@
             self.id = initPack.id;
             self.x = initPack.x;
             self.y = initPack.y;
+
+            self.draw = function () {
+                var width = Img.bullet.width/2;
+                var height = Img.bullet.width/2;
+                
+                var x = self.x - Player.list[selfId].x + WIDTH/2;
+                var y = self.y - Player.list[selfId].y + HEIGHT/2;
+
+                ctx.drawImage(Img.bullet,
+                    0,0,Img.bullet.width,Img.bullet.height,
+                    x-width/2,y-height/2,width,height);
+            }
             Bullet.list[self.id] = self;
             return self;
     }
     Bullet.list = {};
 
+    var selfId = null;
+
+    Player.list[selfId];
     socket.on('init', function(data){
+        if(data.selfId)
+            selfId = data.selfId;
         //Server will send something similar to this object
         //{ player: [{id:123,number:'1',x:0,y:0}, {id:1,number:'2',x:0,y:0}], bullet: []}
         for (var i = 0; i < data.player.length; i++){
@@ -134,6 +178,10 @@
                     p.x = pack.x;
                 if(pack.y !== undefined)
                     p.y = pack.y;
+                if (pack.hp !== undefined)
+                    p.hp = pack.hp;         
+                if (pack.score !== undefined)
+                    p.score = pack.score;           
             }
         }
         for (var i = 0; i < data.bullet.length; i++) {
@@ -169,18 +217,32 @@
                 socket.emit('newPositions', pack);
             }
 
-
         }, 1000 / 25); //runs at 25 fps or every 40 ms
 
     setInterval(function () {
+        if(!selfId)
+            return;
         ctx.clearRect(0,0,500,500);
+        drawMap();  //NOTE:  Map has to be drawn before player others players will be behind map
+        drawScore();
         for(var i in Player.list)
-            ctx.fillText(Player.list[i].number,Player.list[i].x,Player.list[i].y);
+            Player.list[i].draw();
         for(var i in Bullet.list)
-            ctx.fillRect(Bullet.list[i].x-5,Bullet.list[i].y-5,10,10);
+            Bullet.list[i].draw();
     },40);
 
+    var drawMap = function() {
+        var x = WIDTH/2 - Player.list[selfId].x;
+        var y = HEIGHT/2 - Player.list[selfId].y;
+        ctx.drawImage(Img.map,x,y);
+    }
 
+    var drawScore = function (){
+        ctx.fillStyle = 'white';
+        ctx.fillText(Player.list[selfId].score,0,30);
+    }
+
+  
     //for the updatePosition() on server side
     document.onkeydown = function (event) {
         if (event.keyCode === 68) //d
@@ -231,18 +293,9 @@
 
     //We encapsulate the previous code into a function (you can even combine it with other stuff)
 
-    var random = Math.random();
-    var happy = function () {
-        socket.emit('happy', {
-            reason: 'its my birthday' + random
-        });
-    }
 
     //An event listener on client side listening for 'serverMsg'
     socket.on('serverMsg', function (data) {
         console.log(data.msg);
     });
 </script>
-
-<!--Make button to call the happy function() -->
-<button onclick="happy()">Happy</button>

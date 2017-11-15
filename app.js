@@ -15,9 +15,9 @@ for asynchronous programming, anytime we use a function that we'll expect to get
 */
 
 //For mongoDB
-var mongojs = require("mongojs");
+//var mongojs = require("mongojs");
 //Create connection for mongoDB
-var db = mongojs('localhost:27017/myGame', ['account','progress']);
+var db = null; //mongojs('localhost:27017/myGame', ['account','progress']);
 
 //Only time we'll be using express
 var express = require('express');
@@ -29,7 +29,9 @@ app.get('/', function (req, res) {
 });
 app.use('/client',express.static(__dirname + '/client'));
 
-serv.listen(2000);
+
+//serv.listen(2000); //Before Heroku we used this
+serv.listen(process.env.PORT || 2000); //proccess.env.PORT is something that Heroku needs (but we still added port 2000 incase process.env.PORT is unavailable for whatever reason)
 //End of express
 
 
@@ -51,22 +53,22 @@ var Entity = function () {
         spdX:0,
         spdY:0,
         id:"",
-    }
+    };
 
     //Update loop in Entity class
     self.update = function () {
         self.updatePosition();
-    }
+    };
     self.updatePosition = function () {
         self.x += self.spdX;
         self.y += self.spdY;
-    }
+    };
     //Standard way to get distance
     self.getDistance = function(pt){
         return Math.sqrt(Math.pow(self.x-pt.x,2) + Math.pow(self.y-pt.y,2));
-    }
+    };
     return self;
-}
+};
 
 var Player = function (id){
     var self = Entity ();
@@ -80,7 +82,10 @@ var Player = function (id){
     self.pressingAttack = false;
     self.mouseAngle = 0;
     self.maxSpd = 10;
-    
+    self.hp = 10;
+    self.hpMax = 10;
+    self.score = 0;
+
     var super_update = self.update;
     self.update = function () {
         self.updateSpd();
@@ -90,13 +95,13 @@ var Player = function (id){
         if (self.pressingAttack) {
             self.shootBullet(self.mouseAngle);
         }
-    }
+    };
 
     self.shootBullet = function(angle){
         var b = Bullet(self.id, angle);
         b.x = self.x;
         b.y = self.y;
-    }
+    };
 
     //this function gets called every frame
     //Note there is a limitation in general.  The server doesn't have (or shouldn't have) access to the client
@@ -114,20 +119,37 @@ var Player = function (id){
             self.spdY = self.maxSpd;
         else
             self.spdY = 0;
-    } 
+    };
+    //Function that returns an object that contains the game state
+    self.getInitPack = function(){
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            number: self.number,
+            hp: self.hp,
+            hpMax: self.hpMax,
+            score: self.score,
+        };
+    };
+    self.getUpdatePack = function() {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            hp: self.hp,
+            score: self.score,
+        };
+    };
+
     Player.list[id] = self;  //Automatically add this player to the PLAYER_LIST
 
-    initPack.player.push({
-        id: self.id,
-        x: self.x,
-        y: self.y,
-        number: self.number,
-    });
+    initPack.player.push(self.getInitPack());
 
     return self;
 
 
-}//End of Player class
+}; //End of Player class
 Player.list = {};
 Player.onConnect = function (socket) {
     var player = Player(socket.id);
@@ -147,13 +169,30 @@ Player.onConnect = function (socket) {
         else if (data.inputId === 'mouseAngle')
             player.mouseAngle = data.state;
     });
+
+
+
+    //Give the game state whenever a new player connects
+    socket.emit('init', {
+        selfId:socket.id, //so client-side will know what player they are
+        player:Player.getAllInitPack(),
+        bullet:Bullet.getAllInitPack(),
+    });
+
+
     
-}//onConnect
+}; //onConnect
+Player.getAllInitPack = function(){
+    var players = [];
+    for(var i in Player.list)
+        players.push(Player.list[i].getInitPack());
+    return players;
+};
 
 Player.onDisconnect = function (socket) {
     delete Player.list[socket.io];
     removePack.player.push(socket.id);
-}
+};
 
 Player.update = function () {
     //run a package that contains every player in the game
@@ -163,14 +202,13 @@ Player.update = function () {
     for (var i in Player.list) {
         var player = Player.list[i];
         player.update();
-        pack.push({
-            id: player.id,
-            x: player.x,
-            y: player.y
-        });
+        pack.push(player.getUpdatePack());
     }
     return pack;
-}
+};
+      
+    
+    
 
 
 //Bullet class
@@ -193,20 +231,42 @@ var Bullet = function (parent, angle) {
             //RainingChain says it's not good to hard code this.  Improve this later on
             if (self.getDistance(p) < 32 && self.parent !== p.id){
                 //handle collision. ex: hp--;
+                p.hp -= 1;
+
+                if(p.hp <= 0){
+                    //self.parent only refers to the id but we need the object, so we use Player.list[self.parent];
+                    var shooter = Player.list[self.parent];
+                    //If shooter is still alive/connected
+                    if (shooter)
+                        shooter.score += 1;
+                    p.hp = p.hpMax;
+                    p.x = Math.random() * 500;
+                    p.y = Math.random () * 500;
+                }
                 self.toRemove = true;
             }
-        }
-        
-        
-    }
+        }   
+    };
+    //Function that returns an object that contains the game state
+    self.getInitPack = function () {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+            number: self.number,
+        };
+    };
+    self.getUpdatePack = function () {
+        return {
+            id: self.id,
+            x: self.x,
+            y: self.y,
+        };
+    };
     Bullet.list[self.id] = self;
-    initPack.bullet.push({
-        id: self.id,
-        x: self.x,
-        y: self.y,
-    });
+    initPack.bullet.push(self.getInitPack());
     return self;
-}//Bullet Class
+}; //Bullet Class
 
 Bullet.list = {};
 
@@ -223,14 +283,17 @@ Bullet.update = function () {
             delete Bullet.list[i];
             removePack.bullet.push(bullet.id);
         } else
-            pack.push({
-                id: bullet.id,
-                x: bullet.x,
-                y: bullet.y
-            });
+            pack.push(bullet.getUpdatePack());
     }
     return pack;
-}
+};
+
+Bullet.getAllInitPack = function () {
+    var bullets = [];
+    for (var i in Bullet.list)
+        bullets.push(Bullet.list[i].getInitPack());
+    return bullets;
+};
 
 //Used to enable the debugging functions (make sure to set this to false if release publicly!)
 var DEBUG = true;
@@ -246,26 +309,29 @@ var USERS = {
 //data is object with properties username and password
 //cb is the callback
 var isValidPassword = function (data,cb) {
+    return cb(true);
     db.account.find({username:data.username, password:data.password}, function(err,res){ //callback functions always start with error and a result in paramter
         if(res.length > 0) //If there has been a match in db
             cb(true);
         else
             cb(false);
     });
-}
+};
 var isUsernameTaken = function (data,cb) {
+    return cb(false);
     db.account.find({username:data.username}, function (err,res) {
         if(res.length > 0)
             cb(true);
         else
             cb(false);
     });
-}   
+};  
 var addUser = function (data,cb) {
+    return cb();
     db.account.insert({ username: data.username, password: data.password }, function (err) { //no res for insertion
         cb();
     });
-}
+};
 
 
 //socket.io
@@ -323,7 +389,7 @@ io.sockets.on('connection', function(socket) {
             return;
         
         var res = eval(data);
-        socket.emit('evalAnswer', res)
+        socket.emit('evalAnswer', res);
     });
 
  
@@ -352,7 +418,7 @@ setInterval(function() {
     var pack = {
         player:Player.update(),
         bullet:Bullet.update(),
-    }
+    };
     //Basically, every frame, we're sending the init, update, and remove pack.  Then we reset it afterwards
     for(var i in SOCKET_LIST){
         var socket = SOCKET_LIST[i];
