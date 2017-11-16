@@ -34,7 +34,6 @@ app.use('/client',express.static(__dirname + '/client'));
 serv.listen(process.env.PORT || 2000); //proccess.env.PORT is something that Heroku needs (but we still added port 2000 incase process.env.PORT is unavailable for whatever reason)
 //End of express
 
-
 //File communication (Express)
     //Client asks server for a file (Ex: playerImg.png)
 
@@ -45,15 +44,27 @@ serv.listen(process.env.PORT || 2000); //proccess.env.PORT is something that Her
 var SOCKET_LIST = {};
 //var PLAYER_LIST = {}; Previous version of player list.  It's scope is global and we don't want that so we removed it.
 
+
 //Entity will contain everything that the player and bullets share
-var Entity = function () {
+var Entity = function (param) {
     var self = {
         x:250,
         y:250,
         spdX:0,
         spdY:0,
         id:"",
+        map:'forest',
     };
+    if(param){
+        if(param.x)
+            self.x = param.x;
+        if(param.y)
+            self.y = param.y;
+        if(param.map)
+            self.map = param.map;
+        if(param.id)
+            self.id = param.id;
+    }
 
     //Update loop in Entity class
     self.update = function () {
@@ -70,9 +81,8 @@ var Entity = function () {
     return self;
 };
 
-var Player = function (id){
-    var self = Entity ();
-    self.id = id;
+var Player = function (param){
+    var self = Entity (param);
     self.number = "" + Math.floor(10 * Math.random()),
     //Keyboard Interactivity
     self.pressingRight = false;
@@ -98,9 +108,13 @@ var Player = function (id){
     };
 
     self.shootBullet = function(angle){
-        var b = Bullet(self.id, angle);
-        b.x = self.x;
-        b.y = self.y;
+        Bullet({
+            parent: self.id, 
+            angle: angle,
+            x: self.x,
+            y: self.y,
+            map: self.map,
+        });
     };
 
     //this function gets called every frame
@@ -130,6 +144,7 @@ var Player = function (id){
             hp: self.hp,
             hpMax: self.hpMax,
             score: self.score,
+            map: self.map,
         };
     };
     self.getUpdatePack = function() {
@@ -142,7 +157,7 @@ var Player = function (id){
         };
     };
 
-    Player.list[id] = self;  //Automatically add this player to the PLAYER_LIST
+    Player.list[self.id] = self;  //Automatically add this player to the PLAYER_LIST
 
     initPack.player.push(self.getInitPack());
 
@@ -152,7 +167,13 @@ var Player = function (id){
 }; //End of Player class
 Player.list = {};
 Player.onConnect = function (socket) {
-    var player = Player(socket.id);
+    var map = 'forest';
+    if(Math.random() < 0.5)
+        map = 'field';
+    var player = Player({
+        id: socket.id,
+        map: map,
+    });
 
    //Allows server to know what key the client is pressing
     socket.on('keyPress', function (data) {
@@ -212,12 +233,13 @@ Player.update = function () {
 
 
 //Bullet class
-var Bullet = function (parent, angle) {
-    var self = Entity();
+var Bullet = function (param) {
+    var self = Entity(param);
     self.id = Math.random();
-    self.spdX = Math.cos(angle/180*Math.PI) * 10;
-    self.spdY = Math.sin(angle/180*Math.PI) * 10;
-    self.parent = parent;
+    self.angle = param.angle;
+    self.spdX = Math.cos(param.angle/180*Math.PI) * 10;
+    self.spdY = Math.sin(param.angle/180*Math.PI) * 10;
+    self.parent = param.parent;
     self.timer = 0;
     self.toRemove = false;
     var super_update = self.update;
@@ -253,7 +275,7 @@ var Bullet = function (parent, angle) {
             id: self.id,
             x: self.x,
             y: self.y,
-            number: self.number,
+            map: self.map,
         };
     };
     self.getUpdatePack = function () {
