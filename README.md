@@ -1,6 +1,9 @@
-# nodeGame2
-Multiplayer game in Node.js
+# node-shooting-game
+Multiplayer game in Node.js (derived from my nodeGame2 repo)
 
-Following Node tutorial to make a multiplayer game.  I add this on gitHub half-way through
+Based off of the raining chain node.js tutorial
+https://rainingchain.com/tutorial/nodejs
 
-Make sure to push the changes after each tutorial :)
+Wanted to go ahead and make my own type of game so I decided to take this codebase and steer it in a different directions
+
+yolo
