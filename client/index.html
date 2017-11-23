@@ -5,10 +5,12 @@
     <button id="signDiv-signUp">Sign Up</button>
 </div>
 
+<!--<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>-->
 <div id="gameDiv" style="display:none;">
-    <canvas id="ctx" width="500" height="500" style="border:1px solid #000;"></canvas>
+    <canvas id="ctx" width="500" height="500" style="position: absolute; left: 8px; top: 8px; border:1px solid #000;"></canvas>
+    <canvas id="ctx-ui" width="500" height="500" style="position: absolute; left: 8px; top: 8px; border:1px solid #000;"></canvas>
 
-    <div id="chat-text" style="width:500px; height:100px;overflow-y:scroll">
+    <div id="chat-text" style="margin-top: 500px; width:500px; height:100px;overflow-y:scroll">
         <div>Hello!</div>
     </div>
     
@@ -17,12 +19,16 @@
     </form>
 
 </div>
+
+<!-- cdn for socket.io, below it is how you would do it locally -->
 <script src="/socket.io/socket.io.js"></script>
+<!--<script src="/client/socket.js"></script>-->
+
 <script>
     var WIDTH = 500;
     var HEIGHT = 500;
-
     var socket = io();
+
     //sign in stuff
     var signDiv = document.getElementById('signDiv');
     var signDivUsername = document.getElementById('signDiv-username');
@@ -96,7 +102,9 @@
     Img.map['forest'].src = '/client/img/map2.png';
 
     var ctx = document.getElementById("ctx").getContext("2d");
-    ctx.font = '30px Arial'; 
+    var ctxUi = document.getElementById("ctx-ui").getContext("2d");
+    ctxUi.font = '30px Arial'; 
+
 
     //container for players (we're using a class in this case)
     var Player = function(initPack){
@@ -109,9 +117,10 @@
         self.hpMax = initPack.hpMax;
         self.score = initPack.score;
         self.map = initPack.map;
-        
 
         self.draw = function () {
+            if(Player.list[selfId].map !== self.map)
+                return;
             var x = self.x - Player.list[selfId].x + WIDTH / 2;
             var y = self.y - Player.list[selfId].y + HEIGHT / 2;
 
@@ -161,7 +170,7 @@
 
     var selfId = null;
 
-    Player.list[selfId];
+    //Player.list[selfId]; //Not seen in the project
     socket.on('init', function(data){
         if(data.selfId)
             selfId = data.selfId;
@@ -214,7 +223,7 @@
         }
     });
 
-    
+   /* 
     setInterval(function () {
             var pack = {
                 player: Player.update(),
@@ -226,12 +235,13 @@
             }
 
         }, 1000 / 25); //runs at 25 fps or every 40 ms
+    */
 
     setInterval(function () {
         if(!selfId)
             return;
         ctx.clearRect(0,0,500,500);
-        drawMap();  //NOTE:  Map has to be drawn before player others players will be behind map
+        drawMap();  //NOTE:  Map has to be drawn before player otherwise players will be behind map
         drawScore();
         for(var i in Player.list)
             Player.list[i].draw();
@@ -247,11 +257,15 @@
     }
 
     var drawScore = function (){
-        ctx.fillStyle = 'white';
-        ctx.fillText(Player.list[selfId].score,0,30);
+        if(lastScore === Player.list[selfId].score)
+            return;
+        lastScore = Player.list[selfId].score;
+        ctxUi.clearRect(0,0,500,500);
+        ctxUi.fillStyle = 'white';
+        ctxUi.fillText(Player.list[selfId].score,0,30);
     }
+    var lastScore = null;
 
-  
     //for the updatePosition() on server side
     document.onkeydown = function (event) {
         if (event.keyCode === 68) //d

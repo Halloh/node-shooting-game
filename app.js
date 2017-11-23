@@ -24,6 +24,9 @@ var express = require('express');
 var app = express();
 var serv = require('http').Server(app);
 
+//var profiler = require('v8-profiler');
+var fs = require('fs');
+
 app.get('/', function (req, res) {
     res.sendFile(__dirname + '/client/index.html');
 });
@@ -32,6 +35,7 @@ app.use('/client',express.static(__dirname + '/client'));
 
 //serv.listen(2000); //Before Heroku we used this
 serv.listen(process.env.PORT || 2000); //proccess.env.PORT is something that Heroku needs (but we still added port 2000 incase process.env.PORT is unavailable for whatever reason)
+console.log("Server started.");
 //End of express
 
 //File communication (Express)
@@ -240,6 +244,7 @@ var Bullet = function (param) {
     self.spdX = Math.cos(param.angle/180*Math.PI) * 10;
     self.spdY = Math.sin(param.angle/180*Math.PI) * 10;
     self.parent = param.parent;
+
     self.timer = 0;
     self.toRemove = false;
     var super_update = self.update;
@@ -251,7 +256,7 @@ var Bullet = function (param) {
         for(var i in Player.list){
             var p = Player.list[i];
             //RainingChain says it's not good to hard code this.  Improve this later on
-            if (self.getDistance(p) < 32 && self.parent !== p.id){
+            if (self.map === p.map && self.getDistance(p) < 32 && self.parent !== p.id){
                 //handle collision. ex: hp--;
                 p.hp -= 1;
 
@@ -321,38 +326,40 @@ Bullet.getAllInitPack = function () {
 var DEBUG = true;
 
 //Object that contains every user
+/* NOTE: not in tutorial anymore
 var USERS = {
     //username:password
     "bob":"asd",
     "bob2":"bob",
     "bob3":"ttt"
 };
+*/
 
 //data is object with properties username and password
 //cb is the callback
 var isValidPassword = function (data,cb) {
     return cb(true);
-    db.account.find({username:data.username, password:data.password}, function(err,res){ //callback functions always start with error and a result in paramter
+    /*db.account.find({username:data.username, password:data.password}, function(err,res){ //callback functions always start with error and a result in paramter
         if(res.length > 0) //If there has been a match in db
             cb(true);
         else
             cb(false);
-    });
+    });*/
 };
 var isUsernameTaken = function (data,cb) {
     return cb(false);
-    db.account.find({username:data.username}, function (err,res) {
+    /*db.account.find({username:data.username}, function (err,res) {
         if(res.length > 0)
             cb(true);
         else
             cb(false);
-    });
+    });*/
 };  
 var addUser = function (data,cb) {
     return cb();
-    db.account.insert({ username: data.username, password: data.password }, function (err) { //no res for insertion
+    /*db.account.insert({ username: data.username, password: data.password }, function (err) { //no res for insertion
         cb();
-    });
+    });*/
 };
 
 
@@ -457,3 +464,18 @@ setInterval(function() {
 
 
 }, 1000/25); //runs at 25 fps or every 40 ms
+
+/*
+var startProfiling = function(duration){
+	profiler.startProfiling('1', true);
+	setTimeout(function(){
+		var profile1 = profiler.stopProfiling('1');
+		
+		profile1.export(function(error, result) {
+			fs.writeFile('./profile.cpuprofile', result);
+			profile1.delete();
+			console.log("Profile saved.");
+		});
+	},duration);	
+}
+startProfiling(10000);*/
